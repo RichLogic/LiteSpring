@@ -1,50 +1,22 @@
 package org.litespring.beans.factory.support;
 
-import org.dom4j.Document;
-import org.dom4j.Element;
-import org.dom4j.io.SAXReader;
 import org.litespring.beans.BeanDefinition;
 import org.litespring.beans.factory.BeanCreationException;
-import org.litespring.beans.factory.BeanDefinitionStoreException;
-import org.litespring.beans.factory.BeanFactory;
+import org.litespring.beans.factory.config.ConfigurableBeanFactory;
 import org.litespring.util.ClassUtils;
 
-import java.io.InputStream;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class DefaultBeanFactory implements BeanFactory {
+public class DefaultBeanFactory extends DefaultSingletonBeanRegistry implements BeanDefinitionRegistry, ConfigurableBeanFactory {
 
-    private Map<String, BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<>();
+    private Map<String, BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<>(64);
 
-    public DefaultBeanFactory(String xmlPath) {
-        this.loadBeanDefinition(xmlPath);
-    }
+    private ClassLoader classLoader;
 
-    private void loadBeanDefinition(String xmlPath) {
-
-        ClassLoader classLoader = ClassUtils.getDefaultClassLoader();
-        SAXReader reader = new SAXReader();
-
-        try (InputStream inputStream = classLoader.getResourceAsStream(xmlPath)) {
-
-            Element root = null;
-            Document document = reader.read(inputStream);
-            if (document != null) {
-                root = document.getRootElement();
-            }
-            Iterator<Element> iterator = root.elementIterator();
-            while (iterator.hasNext()) {
-                Element element = iterator.next();
-                String id = element.attributeValue("id");
-                String className = element.attributeValue("class");
-                BeanDefinition beanDefinition = new GenericBeanDefinition(id, className);
-                beanDefinitionMap.put(id, beanDefinition);
-            }
-        } catch (Exception e) {
-            throw new BeanDefinitionStoreException(xmlPath + "地址不正确");
-        }
+    @Override
+    public void registerBeanDefinition(String id, BeanDefinition beanDefinition) {
+        beanDefinitionMap.put(id, beanDefinition);
     }
 
     @Override
@@ -59,7 +31,20 @@ public class DefaultBeanFactory implements BeanFactory {
             throw new BeanCreationException("Bean 不存在");
         }
 
-        ClassLoader classLoader = ClassUtils.getDefaultClassLoader();
+        if (beanDefinition.isSingleton()) {
+            Object bean = this.getSingleton(id);
+            if (bean == null) {
+                bean = creatBean(beanDefinition);
+                this.registerSingleton(id, bean);
+            }
+            return bean;
+        }
+
+        return this.creatBean(beanDefinition);
+    }
+
+    private Object creatBean(BeanDefinition beanDefinition) {
+        ClassLoader classLoader = this.getBeanClassLoader();
         String beanClassName = beanDefinition.getBeanClassName();
         try {
             Class<?> clazz = classLoader.loadClass(beanClassName);
@@ -67,6 +52,16 @@ public class DefaultBeanFactory implements BeanFactory {
         } catch (Exception e) {
             throw new BeanCreationException("创建 " + beanClassName + " 失败");
         }
-
     }
+
+    @Override
+    public void setBeanClassLoader(ClassLoader classLoader) {
+        this.classLoader = classLoader;
+    }
+
+    @Override
+    public ClassLoader getBeanClassLoader() {
+        return this.classLoader != null ? classLoader : ClassUtils.getDefaultClassLoader();
+    }
+
 }
