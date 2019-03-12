@@ -22,7 +22,7 @@ public class BeanDefinitionTest {
         BeanDefinition beanDefinition = factory.getBeanDefinition("petStore");
         List<PropertyValue> propertyValueList = beanDefinition.getPropertyValues();
 
-        Assert.assertTrue(propertyValueList.size() == 2);
+        Assert.assertTrue(propertyValueList.size() == 4);
 
         {
             PropertyValue propertyValue = this.getPropertyValue("accountDao", propertyValueList);
